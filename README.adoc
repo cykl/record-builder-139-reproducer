@@ -1,0 +1,22 @@
+# record-builder #139 reproducer
+
+This repository contains a minimal reproducer for https://github.com/Randgalt/record-builder/issues/139.
+
+Use `./trigger.sh` to reproduce the issue.
+The second `mvn compile` should fail with the following error
+
+```
+[ERROR] Failed to execute goal org.apache.maven.plugins:maven-compiler-plugin:3.10.1:compile (default-compile) on project record-builder-139-reproducer: Fatal error compiling: java.lang.NullPointerException: Cannot invoke "javax.lang.model.element.ExecutableElement.getAnnotationMirrors()" because the return value of "javax.lang.model.element.RecordComponentElement.getAccessor()" is null -> [Help 1]
+```
+
+To understand what is going on you can use `mvnDebug` rather than `mvn` for the second build and set following breakpoints:
+
+1. `com.sun.tools.javac.code.Symbol.ClassSymbol.setRecordComponents`
+2. `com.sun.tools.javac.code.Symbol.ClassSymbol.getRecordComponent(com.sun.tools.javac.tree.JCTree.JCVariableDecl, boolean, com.sun.tools.javac.util.List<com.sun.tools.javac.tree.JCTree.JCAnnotation>)` with condition `var.name.toString().contains("Concurrency")`
+3. `io.soabase.recordbuilder.processor.InternalRecordBuilderProcessor.buildRecordComponents`
+
+First one allows to observe that javac parses the class file from the first build and add a record component for `maxConcurrency` with pos = -1 and no accessor.
+
+The second one allow to observe that a second record component is added at a latter stage.
+Since pos != 1, TypeElement for `ConfRecord` ends up with two record components for `maxConcurrency` one of them having no accessor.
+
